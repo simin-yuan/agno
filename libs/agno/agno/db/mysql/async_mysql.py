@@ -1760,7 +1760,9 @@ class AsyncMySQLDb(AsyncBaseDb):
                 result = await sess.execute(stmt)
                 records = result.fetchall()
                 if not records:
-                    return [] if deserialize else ([], 0)
+                    # An empty page is not an empty collection: keep the filtered total so
+                    # clients do not read the collection as empty (see #11499).
+                    return [] if deserialize else ([], total_count or 0)
 
                 memories_raw = [dict(record._mapping) for record in records]
                 if not deserialize:

@@ -590,3 +590,19 @@ def test_get_all_memory_topics_tenant_isolation(postgres_db_real: PostgresDb):
     assert "bob_only" not in alice_topics
     assert "confidential" in alice_topics
     assert "confidential" in bob_topics
+
+
+def test_get_user_memories_empty_page_keeps_total_count(postgres_db_real: PostgresDb):
+    """An empty page past the end must still report how many memories match the filters."""
+    for i in range(3):
+        postgres_db_real.upsert_user_memory(
+            UserMemory(memory_id=f"pg-page-{i}", memory=f"memory {i}", user_id="page-user")
+        )
+
+    rows, total = postgres_db_real.get_user_memories(user_id="page-user", limit=2, page=1, deserialize=False)
+    assert len(rows) == 2
+    assert total == 3
+
+    rows, total = postgres_db_real.get_user_memories(user_id="page-user", limit=2, page=3, deserialize=False)
+    assert rows == []
+    assert total == 3

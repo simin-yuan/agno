@@ -1,0 +1,107 @@
+name: local-agno-memory-pagination
+
+# Fork-only verification for agno-agi/agno#11499: the empty-page branch of
+# get_user_memories drops the filtered total in every backend. Each job runs the
+# backend's real database, so the red/green evidence is not read from source.
+
+on:
+  push:
+    branches:
+      - "local/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sqlite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e "libs/agno[sqlite]" pytest==9.1.1 pytest-asyncio==1.4.0
+      - name: sqlite memory tests
+        run: python -m pytest libs/agno/tests/integration/db/sqlite/test_memory.py -q -p no:randomly
+
+  postgres-sync:
+    runs-on: ubuntu-latest
+    services:
+      postgres-sync:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ai
+          POSTGRES_PASSWORD: ai
+          POSTGRES_DB: ai
+        ports:
+          - 5532:5432
+        options: >-
+          --health-cmd "pg_isready -U ai"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e "libs/agno[postgres]" pytest==9.1.1 pytest-asyncio==1.4.0
+      - name: sync memory tests
+        run: python -m pytest libs/agno/tests/integration/db/postgres/test_memory.py -q -p no:randomly
+
+  postgres-async:
+    runs-on: ubuntu-latest
+    services:
+      postgres-async:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ai
+          POSTGRES_PASSWORD: ai
+          POSTGRES_DB: ai
+        ports:
+          - 5532:5432
+        options: >-
+          --health-cmd "pg_isready -U ai"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e "libs/agno[postgres]" pytest==9.1.1 pytest-asyncio==1.4.0
+      - name: async memory tests
+        run: python -m pytest libs/agno/tests/integration/db/async_postgres/test_memory.py -q -p no:randomly
+
+  mysql:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_USER: ai
+          MYSQL_PASSWORD: ai
+          MYSQL_DATABASE: ai
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uai -pai"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e "libs/agno[mysql]" cryptography pytest==9.1.1 pytest-asyncio==1.4.0
+      - name: Grant the test user rights to create the schema database
+        run: >
+          docker exec ${{ job.services.mysql.id }}
+          mysql -uroot -proot
+          -e "GRANT ALL PRIVILEGES ON *.* TO 'ai'@'%' WITH GRANT OPTION; FLUSH PRIVILEGES;"
+      - name: async memory tests
+        run: python -m pytest libs/agno/tests/integration/db/async_mysql/test_memory.py -q -p no:randomly
