@@ -3630,7 +3630,9 @@ class AsyncMongoDb(AsyncBaseDb):
 
             records = await cursor.to_list(length=None)
             if not records:
-                return [] if deserialize else ([], 0)
+                # An empty page is not an empty collection: keep the filtered
+                # total computed above so pagination metadata stays correct.
+                return [] if deserialize else ([], total_count or 0)
 
             if not deserialize:
                 return records, total_count

@@ -4664,7 +4664,9 @@ class SqliteDb(BaseDb):
 
                 result = sess.execute(stmt).fetchall()
                 if not result:
-                    return [] if deserialize else ([], 0)
+                    # An empty page is not an empty collection: keep the filtered
+                    # total computed above so pagination metadata stays correct.
+                    return [] if deserialize else ([], total_count or 0)
 
                 eval_runs_raw = [dict(row._mapping) for row in result]
                 if not deserialize:
